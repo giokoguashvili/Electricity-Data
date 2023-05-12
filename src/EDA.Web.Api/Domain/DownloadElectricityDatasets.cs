@@ -2,6 +2,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Hosting.Internal;
 using System;
+using System.Net;
+using System.Reflection.Metadata;
 using System.Runtime.InteropServices.ObjectiveC;
 
 
@@ -44,8 +46,8 @@ namespace EDA.Web.Api.Domain
                                 return result;
                             });
                         })
-                        .ToList();
-                Task.WaitAll(runningTasks.ToArray());
+                       .ToList();
+            Task.WaitAll(runningTasks.ToArray());
             return new ActionResult<string>(destinationFolderPath);
         }
     }
@@ -62,19 +64,21 @@ namespace EDA.Web.Api.Domain
         }
         public ActionResult<string> Do()
         {
-            HttpClient client = new HttpClient();
-            var uri = new Uri(fileUrl);
-            var response = client.GetAsync(uri).Result;
+            using var client                = new HttpClient();
+            //using var responseStream        = client.GetStreamAsync(fileUrl).Result;
+            using var response              = client.GetAsync(fileUrl, HttpCompletionOption.ResponseHeadersRead).Result;
+            using var responseStream        = response.Content.ReadAsStream();
+            using var destinationFileStream = new FileStream(destinationFilePath, FileMode.CreateNew);
 
-            response.EnsureSuccessStatusCode();
-
-            using (var fs = new FileStream(destinationFilePath, FileMode.CreateNew))
-            {
-                response.Content.CopyTo(fs, null, CancellationToken.None);
-            }
-
+            responseStream.CopyTo(destinationFileStream);
             return new ActionResult<string>(destinationFilePath);
+            return ActionResult.Ok(destinationFilePath);
         }
+    }
+    public class DownloadFileToFolderAction
+    {
+        public string FileUrl { get; set; }
+        public string DestinationFilePath { get; set; }
     }
 
     public class ActionResult<TContent>
@@ -87,13 +91,32 @@ namespace EDA.Web.Api.Domain
         {
             
         }
-        public ActionResult(bool successed, TContent content)
+        public ActionResult(string error) : this(false, default, error)
+        {
+            
+        }
+        public ActionResult(bool successed, TContent content, params string[] errors)
         {
             Content = content;
+            Errors = errors;
             Successed = successed;
         }
         public bool Successed { get; set; }
         public TContent Content { get; set; }
+        public string[] Errors { get; set; }
+    }
+
+    public static class ActionResult
+    {
+        public static ActionResult<TContent> Ok<TContent>(TContent content)
+        {
+            return new ActionResult<TContent>(content);
+        }
+
+        public static ActionResult<TContent> Error<TContent>(string error)
+        {
+            return new ActionResult<TContent>(error);
+        }
     }
 
     public interface IAction<TContent>
@@ -101,3 +124,4 @@ namespace EDA.Web.Api.Domain
         ActionResult<TContent> Do();
     }
 }
+

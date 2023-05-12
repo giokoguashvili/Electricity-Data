@@ -1,5 +1,6 @@
 
 using EDA.Web.Api.Domain;
+using System.Net;
 using static System.Net.WebRequestMethods;
 
 namespace EDA.Web.Api
@@ -8,14 +9,20 @@ namespace EDA.Web.Api
     {
         public static void Main(string[] args)
         {
-
+            var fileUrl = @"https://data.gov.lt/dataset/1975/download/10766/2022-05.csv";
+            var destinationFilePath = @"C:\Electricity-Data\2022-05.csv";
+            //new DownloadFileToFolder(fileUrl, destinationFilePath).Do();
+            //new WebClient().DownloadFile(new Uri(fileUrl), destinationFilePath);
+            //DownloadFile(fileUrl, destinationFilePath).Wait();
+            //Console.ReadLine();
+            
 
             new DownloadElectricityDatasets(
                 new string[]
                 {
                     "https://data.gov.lt/dataset/1975/download/10766/2022-05.csv",
-                    //"https://data.gov.lt/dataset/1975/download/10765/2022-04.csv",
-                    //"https://data.gov.lt/dataset/1975/download/10764/2022-03.csv",
+                    "https://data.gov.lt/dataset/1975/download/10765/2022-04.csv",
+                    "https://data.gov.lt/dataset/1975/download/10764/2022-03.csv",
                     "https://data.gov.lt/dataset/1975/download/10763/2022-02.csv"
                 },
                 @"C:\Electricity-Data\"
@@ -64,6 +71,25 @@ namespace EDA.Web.Api
             .WithOpenApi();
 
             app.Run();
+        }
+
+        public static async Task DownloadFile(string url, string filePath)
+        {
+            using (var client = new HttpClient())
+            {
+                using (var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead))
+                {
+                    response.EnsureSuccessStatusCode();
+
+                    using (var stream = await response.Content.ReadAsStreamAsync())
+                    {
+                        using (var fileStream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None, 8192, true))
+                        {
+                            await stream.CopyToAsync(fileStream);
+                        }
+                    }
+                }
+            }
         }
     }
 }
